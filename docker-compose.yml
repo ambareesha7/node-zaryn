@@ -1,0 +1,212 @@
+#
+# The source code is mounted read only in all containers. Service `node1`
+# compiles all source code, hence it has write access to shared `_build`,
+# `priv/static`, `priv/c_dist`, `assets/node_modules` folders. Services `bench`
+# and `validate` compile elixir code, hence also have write access to `_build`
+# folder. `HOME` is set to `/opt/code/_build` to beguile `mix` and `npm`.
+# Avoid starting `validate` or `bench` while `node1` is compiling the sources.
+#
+#
+# # Usage
+#
+# ## prepare environment with
+#
+#   $ export UID=$(id -u) GID=$(id -u)
+#
+# or pass UID and GID in command line as below
+#
+# ## start testnet
+#
+#   $ UID=$(id -u) GID=$(id -g) docker-compose up
+#
+# ## benchmark testnet
+#
+#   $ UID=$(id -u) GID=$(id -g) docker-compose up bench
+#
+# ## validate testnet
+#
+#   $ UID=$(id -u) GID=$(id -g) docker-compose up validate
+#
+
+version: "3.9"
+
+services:
+
+  node1:
+    image: zaryn-node:latest
+    environment:
+      - ZARYN_CRYPTO_SEED=node1
+      - ZARYN_MUT_DIR=/opt/data
+      - ZARYN_STATIC_IP=172.16.1.10
+      - ZARYN_DB_HOST=scylladb1:9042
+    volumes:
+      -  ./scripts/docker_compose/wait-for-it.sh:/wait-for-it.sh:ro
+      -  ./data1:/opt/data
+    command: ["/wait-for-it.sh", "sleep 60", "./bin/zaryn_node", "foreground"]
+    networks:
+      zaryn-node:
+        ipv4_address: 172.16.1.10
+    links:
+      - scylladb1
+    depends_on:
+      - scylladb1
+
+  scylladb1:
+    image: scylladb/scylla
+    volumes:
+      - ./data1:/var/lib/scylla
+    networks:
+      zaryn-node:
+        ipv4_address: 172.16.1.11 
+
+
+  node2:
+    image: zaryn-node:latest
+    environment: 
+      - ZARYN_CRYPTO_SEED=node2
+      - ZARYN_MUT_DIR=/opt/data
+      - ZARYN_STATIC_IP=172.16.1.20
+      - ZARYN_P2P_SEEDS=172.16.1.10:3002:00001D967D71B2E135C84206DDD108B5925A2CD99C8EBC5AB5D8FD2EC9400CE3C98A:tcp
+      - ZARYN_DB_HOST=scylladb2:9042
+    volumes:
+      - ./scripts/docker_compose/wait-for-it.sh:/wait-for-it.sh:ro
+      - ./data2:/opt/data
+    command: ["/wait-for-it.sh", "wget -q http://node1:4000/up", "./bin/zaryn_node", "foreground"]
+    networks:
+      zaryn-node:
+        ipv4_address: 172.16.1.20
+    links:
+      - scylladb2
+    depends_on:
+      - scylladb2
+
+  scylladb2:
+    image: scylladb/scylla
+    volumes:
+      - ./data2:/var/lib/scylla
+    networks:
+      zaryn-node:
+        ipv4_address: 172.16.1.21 
+
+      #  node2:
+        #    image: zaryn-node:latest
+        #    depends_on:
+        #      - node1
+        #    environment:
+        #      - ZARYN_CRYPTO_SEED=node2
+        #      - ZARYN_MUT_DIR=/opt/data
+        #      - ZARYN_P2P_SEEDS=172.16.1.101:3002:0008117DAD3A936B641106B53AF3B828940C3BC5A77F1C9BFB8AD214EF6897B000:tcp
+        #      - ZARYN_STATIC_IP=172.16.1.102
+        #    volumes:
+        #      - ./scripts/wait-for-node.sh:/wait-for-node.sh:ro
+        #      - ./data2:/opt/data
+        #    command: ["/wait-for-node.sh", "http://node1:4000/up", "./bin/zaryn_node", "foreground"]
+        #    stdin_open: true
+        #    tty: true
+        #    networks:
+        #      zaryn-node:
+        #        ipv4_address: 172.16.1.102
+        #
+        #  node3:
+        #    image: zaryn-node:latest
+        #    depends_on:
+        #      - node1
+        #    environment:
+        #      - ZARYN_CRYPTO_SEED=node3
+        #      - ZARYN_MUT_DIR=/opt/data
+        #      - ZARYN_P2P_SEEDS=172.16.1.101:3002:0008117DAD3A936B641106B53AF3B828940C3BC5A77F1C9BFB8AD214EF6897B000:tcp
+        #      - ZARYN_STATIC_IP=172.16.1.103
+        #    volumes:
+        #      - ./scripts/wait-for-node.sh:/wait-for-node.sh:ro
+        #      - ./data3:/opt/data
+        #    command: ["/wait-for-node.sh", "http://node1:4000/up", "./bin/zaryn_node", "foreground"]
+        #    stdin_open: true
+        #    tty: true
+        #    networks:
+        #      zaryn-node:
+        #        ipv4_address: 172.16.1.103
+        #
+        #  node4:
+        #    image: zaryn-node:latest
+        #    depends_on:
+        #      - node1
+        #    environment:
+        #      - ZARYN_CRYPTO_SEED=node4
+        #      - ZARYN_MUT_DIR=/opt/data
+        #      - ZARYN_P2P_SEEDS=172.16.1.101:3002:0008117DAD3A936B641106B53AF3B828940C3BC5A77F1C9BFB8AD214EF6897B000:tcp
+        #      - ZARYN_STATIC_IP=172.16.1.104
+        #    volumes:
+        #      - ./scripts/wait-for-node.sh:/wait-for-node.sh:ro
+        #      - ./data4:/opt/data
+        #    command: ["/wait-for-node.sh", "http://node1:4000/up", "./bin/zaryn_node", "foreground"]
+        #    stdin_open: true
+        #    tty: true
+        #    networks:
+        #      zaryn-node:
+        #        ipv4_address: 172.16.1.104
+        #
+        #  node5:
+        #    image: zaryn-node:latest
+        #    depends_on:
+        #      - node1
+        #    environment:
+        #      - ZARYN_CRYPTO_SEED=node5
+        #      - ZARYN_MUT_DIR=/opt/data
+        #      - ZARYN_P2P_SEEDS=172.16.1.101:3002:0008117DAD3A936B641106B53AF3B828940C3BC5A77F1C9BFB8AD214EF6897B000:tcp
+        #      - ZARYN_STATIC_IP=172.16.1.105
+        #    volumes:
+        #      - ./scripts/wait-for-node.sh:/wait-for-node.sh:ro
+        #      - ./data5:/opt/data
+        #    command: ["/wait-for-node.sh", "http://node1:4000/up", "elixir", "--sname", "u", "-S", "mix", "run", "--no-halt", "--no-compile"]
+        #    stdin_open: true
+        #    tty: true
+        #    networks:
+        #      zaryn-node:
+        #        ipv4_address: 172.16.1.105
+        #
+        #  collector:
+        #    image: prom/prometheus
+        #    volumes:
+        #      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        #    networks:
+        #      zaryn-node:
+        #        ipv4_address: 172.16.1.200
+        #
+        #  bench:
+        #    image: zaryn-node:latest
+        #    environment:
+        #      - ZARYN_MUT_DIR=/opt/data
+        #    volumes:
+        #      - ./bench_data:/opt/data
+        #    command: ["mix", "zaryn.testnet.validate", "--after", "node1", "node2", "node3", "node4", "node5"]
+        #    stdin_open: true
+        #    tty: true
+        #    profiles: ["validate"]
+        #    sysctls:
+        #      net.ipv4.tcp_tw_reuse: 1
+        #      net.ipv4.ip_local_port_range: 16000 60999
+        #
+        #    networks:
+        #      zaryn-node:
+        #        ipv4_address: 172.16.1.201
+        #
+        #  validate:
+        #    image: zaryn-node:latest
+        #    environment:
+        #      - ZARYN_MUT_DIR=/opt/data
+        #    volumes:
+        #      - ./validator_data:/opt/data
+        #    command: ["mix", "zaryn.testnet.validate", "--validate", "node1", "node2", "node3", "node4", "node5"]
+        #    stdin_open: true
+        #    tty: true
+        #    profiles: ["validate"]
+        #    networks:
+        #      zaryn-node:
+        #        ipv4_address: 172.16.1.202
+
+networks:
+  zaryn-node:
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.16.1.0/24"
